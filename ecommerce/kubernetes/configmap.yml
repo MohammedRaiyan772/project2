@@ -1,0 +1,12 @@
+
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: product-config
+  namespace: ecommerce
+
+data:
+  APP_NAME: "RAIYAN E-COMMERCE"
+  APP_ENV: "production"
+  CURRENCY: "INR"

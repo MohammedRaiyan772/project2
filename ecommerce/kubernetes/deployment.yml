@@ -1,0 +1,142 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: ecommerce
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: raiyan100/devops:ecommerce-frontend-v2
+          ports:
+            - containerPort: 80
+              name: http
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product
+  namespace: ecommerce
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: product
+  template:
+    metadata:
+      labels:
+        app: product
+    spec:
+      containers:
+        - name: product
+          image: raiyan100/devops:ecommerce-product-v1
+          ports:
+            - containerPort: 5000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: product-config
+            - secretRef:
+                name: product-secret
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: ecommerce-pv
+spec:
+  capacity:
+    storage: 1Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: manual
+  local:
+    path: /mnt/ecommerce-data
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - ip-10-0-0-69
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ecommerce-pvc
+  namespace: ecommerce
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: manual
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ecommerce-stateful
+  namespace: ecommerce
+spec:
+  serviceName: ecommerce-stateful
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ecommerce-stateful
+  template:
+    metadata:
+      labels:
+        app: ecommerce-stateful
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: ip-10-0-0-69
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: ecommerce-storage
+              mountPath: /usr/share/nginx/html/data
+      volumes:
+        - name: ecommerce-storage
+          persistentVolumeClaim:
+            claimName: ecommerce-pvc
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ecommerce-daemon
+  namespace: ecommerce
+spec:
+  selector:
+    matchLabels:
+      app: ecommerce-daemon
+  template:
+    metadata:
+      labels:
+        app: ecommerce-daemon
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+              name: http
